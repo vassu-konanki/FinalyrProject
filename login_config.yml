@@ -1,0 +1,14 @@
+credentials:
+  usernames:
+    admin:
+      email: admin@gmail.com
+      name: Admin
+      area: Police Station
+      city: Bapatla
+      role: Officer
+      password: admin123
+
+cookie:
+  name: random_cookie_name
+  key: random_key
+  expiry_days: 30
