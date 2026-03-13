@@ -1,22 +1,30 @@
 import os
 import numpy as np
-import cv2
-import PIL
 import streamlit as st
-from insightface.app import FaceAnalysis
+import PIL
+
+# Safe imports
+try:
+    import cv2
+except Exception as e:
+    st.error(f"OpenCV failed to load: {e}")
+
+try:
+    from insightface.app import FaceAnalysis
+except Exception as e:
+    st.error(f"InsightFace failed to load: {e}")
+    FaceAnalysis = None
+
 
 # ==============================
-# CENTRAL DATABASE PATH (FIX)
+# CENTRAL DATABASE PATH
 # ==============================
 
-# Get project root directory
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
-# Create data folder at root
 DATA_DIR = os.path.join(BASE_DIR, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# Shared database path
 DB_PATH = os.path.join(DATA_DIR, "cases.db")
 
 
@@ -24,12 +32,29 @@ DB_PATH = os.path.join(DATA_DIR, "cases.db")
 # FACE MODEL (LOAD ONCE)
 # ==============================
 
-# Load InsightFace model once (global singleton)
-app = FaceAnalysis(
-    name="buffalo_l",
-    providers=["CPUExecutionProvider"]
-)
-app.prepare(ctx_id=0, det_size=(640, 640))
+@st.cache_resource
+def load_face_model():
+
+    if FaceAnalysis is None:
+        return None
+
+    try:
+        model = FaceAnalysis(
+            name="buffalo_sc",  # smaller model
+            providers=["CPUExecutionProvider"]
+        )
+
+        # ctx_id = -1 → CPU
+        model.prepare(ctx_id=-1, det_size=(640, 640))
+
+        return model
+
+    except Exception as e:
+        st.error(f"Face model failed to load: {e}")
+        return None
+
+
+app = load_face_model()
 
 
 # ==============================
@@ -39,30 +64,35 @@ app.prepare(ctx_id=0, det_size=(640, 640))
 def image_obj_to_numpy(image_obj) -> np.ndarray:
     """
     Convert Streamlit image object to RGB numpy array
-    (for correct UI display)
     """
     image = PIL.Image.open(image_obj).convert("RGB")
     return np.array(image)
 
 
+# ==============================
+# EXTRACT FACE EMBEDDING
+# ==============================
+
 def extract_face_embedding(image_rgb: np.ndarray):
-    """
-    Extract 512-D identity embedding using InsightFace.
-    Converts RGB → BGR internally (required by InsightFace).
-    """
+
+    if app is None:
+        st.error("Face model is not loaded.")
+        return None
+
     try:
-        # Convert RGB → BGR for model
+        # Convert RGB → BGR for OpenCV
         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
 
         faces = app.get(image_bgr)
 
         if faces is None or len(faces) == 0:
-            st.error("No face detected. Please upload a clear face image.")
+            st.warning("⚠️ No face detected. Upload a clear face image.")
             return None
 
-        embedding = faces[0].embedding  # (512,)
+        embedding = faces[0].embedding
+
         return embedding.astype(float).tolist()
 
     except Exception as e:
-        st.error(f"Face extraction failed: {str(e)}")
+        st.error(f"Face extraction failed: {e}")
         return None
