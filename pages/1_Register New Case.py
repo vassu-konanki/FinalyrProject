@@ -1,14 +1,15 @@
+import streamlit as st
+
+st.set_page_config(page_title="Register New Case")
+
 import uuid
 import numpy as np
-import streamlit as st
 import json
 
 from pages.helper.data_models import RegisteredCases
 from pages.helper import db_queries
 from pages.helper.utils import image_obj_to_numpy, extract_face_embedding
 from pages.helper.supabase_storage import upload_image
-
-st.set_page_config(page_title="Register New Case")
 
 # Ensure DB exists
 db_queries.create_db()
@@ -91,7 +92,7 @@ with form_col.form(key="new_case_form"):
                 complainant_mobile=mobile_number,
                 complainant_name=complainant_name,
                 face_mesh=json.dumps(face_mesh),
-                image_path=image_path,  # Supabase public URL
+                image_path=image_path,
                 adhaar_card=adhaar_card,
                 birth_marks=birthmarks,
                 address=address,
