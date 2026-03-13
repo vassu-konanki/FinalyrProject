@@ -10,12 +10,8 @@ Pillow==10.2.0
 insightface==0.7.2
 onnxruntime==1.14.1
 
-supabase==2.3.4
-httpx==0.23.3
-gotrue==2.3.2
-postgrest==0.13.2
-realtime==1.0.6
-storage3==0.5.5
+supabase==2.2.1
+httpx==0.24.1
 
 sqlmodel==0.0.16
 sqlalchemy==2.0.25
