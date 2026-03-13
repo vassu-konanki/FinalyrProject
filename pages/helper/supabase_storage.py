@@ -15,7 +15,6 @@ BUCKET_NAME = "missing-person-images"
 
 
 def upload_image(file):
-
     try:
         file_ext = file.name.split(".")[-1]
         filename = f"{uuid.uuid4()}.{file_ext}"
@@ -29,7 +28,6 @@ def upload_image(file):
         )
 
         url = supabase.storage.from_(BUCKET_NAME).get_public_url(filename)
-
         return url
 
     except Exception as e:
