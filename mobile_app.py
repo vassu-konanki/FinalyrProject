@@ -1,19 +1,26 @@
+import streamlit as st
+
+# MUST be the first Streamlit command
+st.set_page_config(
+    page_title="Mobile UI",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 import uuid
 import json
 import numpy as np
-import streamlit as st
 
 from pages.helper import db_queries
 from pages.helper.data_models import PublicSubmissions
 from pages.helper.utils import image_obj_to_numpy, extract_face_embedding
 from pages.helper.supabase_storage import upload_image
 
-st.set_page_config("Mobile UI", initial_sidebar_state="expanded")
 
 # -------------------------------
 # SIDEBAR MENU
 # -------------------------------
-st.sidebar.title("mobile app")
+st.sidebar.title("Mobile App")
 
 menu = st.sidebar.radio(
     "Navigation",
@@ -22,7 +29,6 @@ menu = st.sidebar.radio(
 
 # -------------------------------
 # PAGE 1: REGISTERED CASES
-# (Police uploaded, Not Found only)
 # -------------------------------
 if menu == "Registered Cases":
     st.title("Registered Missing Persons (Not Found)")
@@ -51,9 +57,9 @@ if menu == "Registered Cases":
     else:
         st.info("No not-found registered cases.")
 
+
 # -------------------------------
 # PAGE 2: ALL CASES
-# (Shows all police cases)
 # -------------------------------
 elif menu == "All Cases":
     st.title("Missing Persons")
@@ -81,14 +87,15 @@ elif menu == "All Cases":
     else:
         st.info("No registered cases yet.")
 
+
 # -------------------------------
 # PAGE 3: REGISTER NEW CASE
-# (Public submission)
 # -------------------------------
 elif menu == "Register New Case":
     st.title("Make a Submission")
 
     image_col, form_col = st.columns(2)
+
     image_obj = None
     save_flag = 0
     image_numpy = None
@@ -97,7 +104,9 @@ elif menu == "Register New Case":
 
     with image_col:
         image_obj = st.file_uploader(
-            "Upload Image", type=["jpg", "jpeg", "png"], key="user_submission"
+            "Upload Image",
+            type=["jpg", "jpeg", "png"],
+            key="user_submission"
         )
 
         if image_obj:
@@ -143,16 +152,19 @@ elif menu == "Register New Case":
         if save_flag == 1:
             st.success("Successfully Submitted")
 
+
 # -------------------------------
 # PAGE 4: HELP
 # -------------------------------
 elif menu == "Help":
     st.title("Help")
-    st.write("""
-    **How to use this app:**
-    
-    1. View missing persons in **Registered Cases**.
-    2. If you see someone, go to **Register New Case**.
-    3. Upload the photo and submit details.
-    4. Police will verify the match.
-    """)
+    st.write(
+        """
+        **How to use this app:**
+
+        1. View missing persons in **Registered Cases**.
+        2. If you see someone, go to **Register New Case**.
+        3. Upload the photo and submit details.
+        4. Police will verify the match.
+        """
+    )
