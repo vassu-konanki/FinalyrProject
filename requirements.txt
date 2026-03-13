@@ -10,11 +10,12 @@ Pillow==10.2.0
 insightface==0.7.3
 onnxruntime==1.16.3
 
+supabase==2.4.0
+httpx==0.24.1
+
 sqlmodel==0.0.16
 sqlalchemy==2.0.25
 psycopg2-binary==2.9.9
-
-supabase==2.4.0
 
 streamlit-authenticator==0.4.2
 st-pages==0.4.5
