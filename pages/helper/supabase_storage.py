@@ -1,55 +1,33 @@
-import os
 import uuid
-from dotenv import load_dotenv
+import streamlit as st
 from supabase import create_client
 
-load_dotenv()
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 BUCKET_NAME = "missing-person-images"
 
 
-def upload_image(file_or_bytes, original_filename=None):
-    """
-    Flexible upload function.
-    Works with:
-    1) upload_image(file_object)
-    2) upload_image(file_bytes, filename)
-    """
+def upload_image(file):
+
     try:
-        # Case 1: file object from Streamlit uploader
-        if original_filename is None:
-            file_obj = file_or_bytes
-            file_bytes = file_obj.getvalue()
-            original_filename = file_obj.name
-            content_type = file_obj.type
-        else:
-            # Case 2: bytes + filename
-            file_bytes = file_or_bytes
-            content_type = "image/jpeg"
+        file_ext = file.name.split(".")[-1]
+        filename = f"{uuid.uuid4()}.{file_ext}"
 
-        # Extract extension
-        file_ext = original_filename.split(".")[-1]
+        file_bytes = file.read()
 
-        # Unique filename
-        unique_filename = f"{uuid.uuid4()}.{file_ext}"
-
-        # Upload to Supabase
         supabase.storage.from_(BUCKET_NAME).upload(
-            unique_filename,
+            filename,
             file_bytes,
-            {"content-type": content_type}
+            {"content-type": file.type},
         )
 
-        # Get public URL
-        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(unique_filename)
+        url = supabase.storage.from_(BUCKET_NAME).get_public_url(filename)
 
-        return public_url
+        return url
 
     except Exception as e:
-        print("Upload error:", e)
+        st.error(f"Upload failed: {e}")
         return None
