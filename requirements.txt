@@ -10,7 +10,7 @@ Pillow==10.2.0
 insightface==0.7.2
 onnxruntime==1.14.1
 
-supabase==2.2.1
+supabase==2.0.3
 httpx==0.24.1
 
 sqlmodel==0.0.16
