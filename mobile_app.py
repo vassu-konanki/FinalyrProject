@@ -27,6 +27,7 @@ menu = st.sidebar.radio(
     ["Register New Case", "Registered Cases", "All Cases", "Help"]
 )
 
+
 # -------------------------------
 # PAGE 1: REGISTERED CASES
 # -------------------------------
@@ -34,7 +35,6 @@ if menu == "Registered Cases":
     st.title("Registered Missing Persons (Not Found)")
 
     cases = db_queries.get_all_cases()
-
     not_found_cases = [case for case in cases if case.status == "NF"]
 
     if not_found_cases:
@@ -117,7 +117,9 @@ elif menu == "Register New Case":
                 face_mesh = extract_face_embedding(image_numpy)
 
                 file_bytes = image_obj.getvalue()
-                image_path = upload_image(file_bytes, image_obj.name)
+
+                # FIXED HERE
+                image_path = upload_image(file_bytes)
 
     if image_obj:
         with form_col.form(key="new_user_submission"):
