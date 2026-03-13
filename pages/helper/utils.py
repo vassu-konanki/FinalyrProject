@@ -1,18 +1,17 @@
 import os
 import numpy as np
-import streamlit as st
 import PIL
+import streamlit as st
 
-# Safe imports
+# Safe imports without Streamlit UI
 try:
     import cv2
-except Exception as e:
-    st.error(f"OpenCV failed to load: {e}")
+except Exception:
+    cv2 = None
 
 try:
     from insightface.app import FaceAnalysis
-except Exception as e:
-    st.error(f"InsightFace failed to load: {e}")
+except Exception:
     FaceAnalysis = None
 
 
@@ -35,22 +34,20 @@ DB_PATH = os.path.join(DATA_DIR, "cases.db")
 @st.cache_resource
 def load_face_model():
 
-    if FaceAnalysis is None:
+    if FaceAnalysis is None or cv2 is None:
         return None
 
     try:
         model = FaceAnalysis(
-            name="buffalo_sc",  # smaller model
+            name="buffalo_sc",
             providers=["CPUExecutionProvider"]
         )
 
-        # ctx_id = -1 → CPU
         model.prepare(ctx_id=-1, det_size=(640, 640))
 
         return model
 
-    except Exception as e:
-        st.error(f"Face model failed to load: {e}")
+    except Exception:
         return None
 
 
@@ -62,9 +59,7 @@ app = load_face_model()
 # ==============================
 
 def image_obj_to_numpy(image_obj) -> np.ndarray:
-    """
-    Convert Streamlit image object to RGB numpy array
-    """
+
     image = PIL.Image.open(image_obj).convert("RGB")
     return np.array(image)
 
@@ -76,23 +71,19 @@ def image_obj_to_numpy(image_obj) -> np.ndarray:
 def extract_face_embedding(image_rgb: np.ndarray):
 
     if app is None:
-        st.error("Face model is not loaded.")
         return None
 
     try:
-        # Convert RGB → BGR for OpenCV
         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
 
         faces = app.get(image_bgr)
 
-        if faces is None or len(faces) == 0:
-            st.warning("⚠️ No face detected. Upload a clear face image.")
+        if not faces:
             return None
 
         embedding = faces[0].embedding
 
         return embedding.astype(float).tolist()
 
-    except Exception as e:
-        st.error(f"Face extraction failed: {e}")
+    except Exception:
         return None
