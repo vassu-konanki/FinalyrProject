@@ -6,7 +6,7 @@ import streamlit as st
 from insightface.app import FaceAnalysis
 
 # ==============================
-# CENTRAL DATABASE PATH (FIX)
+# CENTRAL DATABASE PATH
 # ==============================
 
 # Get project root directory
@@ -21,15 +21,28 @@ DB_PATH = os.path.join(DATA_DIR, "cases.db")
 
 
 # ==============================
-# FACE MODEL (LOAD ONCE)
+# LOAD FACE MODEL (CACHED)
 # ==============================
 
-# Load InsightFace model once (global singleton)
-app = FaceAnalysis(
-    name="buffalo_l",
-    providers=["CPUExecutionProvider"]
-)
-app.prepare(ctx_id=0, det_size=(640, 640))
+@st.cache_resource
+def load_face_model():
+    """
+    Load InsightFace model once and reuse.
+    Streamlit cache prevents repeated downloads.
+    """
+    model = FaceAnalysis(
+        name="buffalo_l",
+        providers=["CPUExecutionProvider"]
+    )
+
+    # ctx_id = -1 → CPU (Streamlit Cloud has no GPU)
+    model.prepare(ctx_id=-1, det_size=(640, 640))
+
+    return model
+
+
+# Load model
+app = load_face_model()
 
 
 # ==============================
@@ -38,29 +51,34 @@ app.prepare(ctx_id=0, det_size=(640, 640))
 
 def image_obj_to_numpy(image_obj) -> np.ndarray:
     """
-    Convert Streamlit image object to RGB numpy array
-    (for correct UI display)
+    Convert Streamlit uploaded image to RGB numpy array
     """
     image = PIL.Image.open(image_obj).convert("RGB")
     return np.array(image)
 
 
+# ==============================
+# FACE EMBEDDING EXTRACTION
+# ==============================
+
 def extract_face_embedding(image_rgb: np.ndarray):
     """
-    Extract 512-D identity embedding using InsightFace.
-    Converts RGB → BGR internally (required by InsightFace).
+    Extract 512D face embedding using InsightFace
     """
+
     try:
-        # Convert RGB → BGR for model
+
+        # Convert RGB → BGR (required by OpenCV / InsightFace)
         image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
 
         faces = app.get(image_bgr)
 
         if faces is None or len(faces) == 0:
-            st.error("No face detected. Please upload a clear face image.")
+            st.error("⚠️ No face detected. Please upload a clear face image.")
             return None
 
-        embedding = faces[0].embedding  # (512,)
+        embedding = faces[0].embedding  # 512 dimensional vector
+
         return embedding.astype(float).tolist()
 
     except Exception as e:
