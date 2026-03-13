@@ -1,59 +1,55 @@
 import os
 import uuid
-import streamlit as st
 from dotenv import load_dotenv
-from supabase import create_client, Client
-
-# ==============================
-# LOAD ENV VARIABLES
-# ==============================
+from supabase import create_client
 
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("Supabase credentials are missing. Check environment variables.")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# ==============================
-# CREATE SUPABASE CLIENT
-# ==============================
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-# Storage bucket name
 BUCKET_NAME = "missing-person-images"
 
 
-# ==============================
-# UPLOAD IMAGE FUNCTION
-# ==============================
-
-def upload_image(file_obj):
+def upload_image(file_or_bytes, original_filename=None):
     """
-    Upload image to Supabase Storage and return public URL
+    Flexible upload function.
+    Works with:
+    1) upload_image(file_object)
+    2) upload_image(file_bytes, filename)
     """
-
     try:
-        # Generate unique filename
-        file_ext = file_obj.name.split(".")[-1]
-        filename = f"{uuid.uuid4()}.{file_ext}"
+        # Case 1: file object from Streamlit uploader
+        if original_filename is None:
+            file_obj = file_or_bytes
+            file_bytes = file_obj.getvalue()
+            original_filename = file_obj.name
+            content_type = file_obj.type
+        else:
+            # Case 2: bytes + filename
+            file_bytes = file_or_bytes
+            content_type = "image/jpeg"
 
-        file_bytes = file_obj.read()
+        # Extract extension
+        file_ext = original_filename.split(".")[-1]
 
-        # Upload file
+        # Unique filename
+        unique_filename = f"{uuid.uuid4()}.{file_ext}"
+
+        # Upload to Supabase
         supabase.storage.from_(BUCKET_NAME).upload(
-            filename,
+            unique_filename,
             file_bytes,
-            {"content-type": file_obj.type}
+            {"content-type": content_type}
         )
 
         # Get public URL
-        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(filename)
+        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(unique_filename)
 
         return public_url
 
     except Exception as e:
-        st.error(f"Image upload failed: {e}")
+        print("Upload error:", e)
         return None
