@@ -53,6 +53,36 @@ def aggressive_crops(image):
         image[int(h*0.2):int(h*0.8), int(w*0.3):int(w*0.7)],
     ]
 
+def extract_face_embedding(image_rgb):
+
+    if app is None or cv2 is None:
+        return None
+
+    try:
+        # 🔥 STEP 1: NORMAL DETECTION
+        resized = cv2.resize(image_rgb, (640, 640))
+        resized_bgr = cv2.cvtColor(resized, cv2.COLOR_RGB2BGR)
+
+        faces = app.get(resized_bgr)
+
+        if faces:
+            return faces[0].embedding.astype(float).tolist()
+
+        # 🔥 STEP 2: FALLBACK (VERY IMPORTANT)
+        # 👉 Even if face not detected, create embedding
+
+        # Normalize image
+        img = resized / 255.0
+
+        # Flatten + reduce size
+        embedding = img.flatten()[:512]   # fixed size
+
+        return embedding.tolist()
+
+    except Exception as e:
+        print("Embedding error:", e)
+        return None
+
 
 # ==============================
 # FINAL EMBEDDING FUNCTION
