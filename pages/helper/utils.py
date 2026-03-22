@@ -2,32 +2,38 @@ import numpy as np
 import PIL
 import streamlit as st
 
+# Safe imports
 try:
     import cv2
-except:
+except Exception:
     cv2 = None
 
 try:
     from insightface.app import FaceAnalysis
-except:
+except Exception:
     FaceAnalysis = None
 
 
 # ==============================
-# LOAD MODEL
+# LOAD MODEL (SAFE)
 # ==============================
 
 @st.cache_resource
 def load_face_model():
     if FaceAnalysis is None or cv2 is None:
+        print("⚠️ InsightFace or OpenCV not available")
         return None
 
-    model = FaceAnalysis(
-        name="buffalo_sc",
-        providers=["CPUExecutionProvider"]
-    )
-    model.prepare(ctx_id=-1, det_size=(640, 640))
-    return model
+    try:
+        model = FaceAnalysis(
+            name="buffalo_sc",
+            providers=["CPUExecutionProvider"]
+        )
+        model.prepare(ctx_id=-1, det_size=(640, 640))
+        return model
+    except Exception as e:
+        print("Model load error:", e)
+        return None
 
 
 app = load_face_model()
@@ -38,23 +44,30 @@ app = load_face_model()
 # ==============================
 
 def image_obj_to_numpy(image_obj):
-    image = PIL.Image.open(image_obj).convert("RGB")
-    return np.array(image)
+    try:
+        image = PIL.Image.open(image_obj).convert("RGB")
+        return np.array(image)
+    except Exception as e:
+        print("Image conversion error:", e)
+        return None
 
 
 # ==============================
-# 🔥 FINAL EMBEDDING FUNCTION
+# FACE EMBEDDING (SAFE VERSION)
 # ==============================
 
 def extract_face_embedding(image_rgb):
 
+    # ✅ Prevent crash
+    if image_rgb is None:
+        return None
+
     if app is None or cv2 is None:
+        print("⚠️ Model not loaded")
         return None
 
     try:
-        h, w, _ = image_rgb.shape
-
-        # 🔥 STEP 1: FORCE RESIZE (MOST IMPORTANT)
+        # Resize
         resized = cv2.resize(image_rgb, (640, 640))
         resized_bgr = cv2.cvtColor(resized, cv2.COLOR_RGB2BGR)
 
@@ -63,7 +76,9 @@ def extract_face_embedding(image_rgb):
         if faces:
             return faces[0].embedding.astype(float).tolist()
 
-        # 🔥 STEP 2: TRY MULTIPLE ZOOMS (NO DETECTOR)
+        # 🔥 fallback zooms
+        h, w, _ = image_rgb.shape
+
         zooms = [
             image_rgb[0:int(h*0.6), :],
             image_rgb[int(h*0.1):int(h*0.7), :],
