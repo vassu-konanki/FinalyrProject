@@ -2,38 +2,29 @@ import numpy as np
 import PIL
 import streamlit as st
 
-# Safe imports
 try:
     import cv2
-except Exception:
+except:
     cv2 = None
 
 try:
     from insightface.app import FaceAnalysis
-except Exception:
+except:
     FaceAnalysis = None
 
 
 # ==============================
-# LOAD MODEL (SAFE)
+# LOAD MODEL
 # ==============================
 
 @st.cache_resource
 def load_face_model():
     if FaceAnalysis is None or cv2 is None:
-        print("⚠️ InsightFace or OpenCV not available")
         return None
 
-    try:
-        model = FaceAnalysis(
-            name="buffalo_sc",
-            providers=["CPUExecutionProvider"]
-        )
-        model.prepare(ctx_id=-1, det_size=(640, 640))
-        return model
-    except Exception as e:
-        print("Model load error:", e)
-        return None
+    model = FaceAnalysis(name="buffalo_sc", providers=["CPUExecutionProvider"])
+    model.prepare(ctx_id=-1, det_size=(640, 640))
+    return model
 
 
 app = load_face_model()
@@ -44,30 +35,51 @@ app = load_face_model()
 # ==============================
 
 def image_obj_to_numpy(image_obj):
-    try:
-        image = PIL.Image.open(image_obj).convert("RGB")
-        return np.array(image)
-    except Exception as e:
-        print("Image conversion error:", e)
-        return None
+    image = PIL.Image.open(image_obj).convert("RGB")
+    return np.array(image)
 
 
 # ==============================
-# FACE EMBEDDING (SAFE VERSION)
+# 🔥 AGGRESSIVE CROPPING
+# ==============================
+
+def aggressive_crops(image):
+    h, w, _ = image.shape
+
+    return [
+        image[0:int(h*0.5), int(w*0.2):int(w*0.8)],   # top-center
+        image[0:int(h*0.6), :],                       # full top
+        image[int(h*0.1):int(h*0.7), int(w*0.2):int(w*0.8)],
+        image[int(h*0.2):int(h*0.8), int(w*0.3):int(w*0.7)],
+    ]
+
+
+# ==============================
+# FINAL EMBEDDING FUNCTION
 # ==============================
 
 def extract_face_embedding(image_rgb):
 
-    # ✅ Prevent crash
-    if image_rgb is None:
-        return None
-
     if app is None or cv2 is None:
-        print("⚠️ Model not loaded")
         return None
 
     try:
-        # Resize
+        # 🔥 STEP 1: FORCE CROPS FIRST (KEY FIX)
+        crops = aggressive_crops(image_rgb)
+
+        for crop in crops:
+            if crop is None or crop.size == 0:
+                continue
+
+            crop = cv2.resize(crop, (640, 640))
+            crop_bgr = cv2.cvtColor(crop, cv2.COLOR_RGB2BGR)
+
+            faces = app.get(crop_bgr)
+
+            if faces:
+                return faces[0].embedding.astype(float).tolist()
+
+        # 🔥 STEP 2: FULL IMAGE RESIZE
         resized = cv2.resize(image_rgb, (640, 640))
         resized_bgr = cv2.cvtColor(resized, cv2.COLOR_RGB2BGR)
 
@@ -76,29 +88,9 @@ def extract_face_embedding(image_rgb):
         if faces:
             return faces[0].embedding.astype(float).tolist()
 
-        # 🔥 fallback zooms
-        h, w, _ = image_rgb.shape
-
-        zooms = [
-            image_rgb[0:int(h*0.6), :],
-            image_rgb[int(h*0.1):int(h*0.7), :],
-            image_rgb[int(h*0.2):int(h*0.8), int(w*0.2):int(w*0.8)],
-        ]
-
-        for z in zooms:
-            if z is None or z.size == 0:
-                continue
-
-            z = cv2.resize(z, (640, 640))
-            z_bgr = cv2.cvtColor(z, cv2.COLOR_RGB2BGR)
-
-            faces = app.get(z_bgr)
-
-            if faces:
-                return faces[0].embedding.astype(float).tolist()
-
+        # 🔥 STEP 3: FINAL FAIL
         return None
 
     except Exception as e:
-        print("Face embedding error:", e)
+        print("Face detection error:", e)
         return None
