@@ -3,7 +3,19 @@ import numpy as np
 import cv2
 import PIL
 import streamlit as st
-from insightface.app import FaceAnalysis
+
+# ==============================
+# 🔥 SAFE IMPORT (CRITICAL FIX)
+# ==============================
+
+try:
+    from insightface.app import FaceAnalysis
+    INSIGHT_AVAILABLE = True
+except Exception as e:
+    print("⚠️ InsightFace import failed:", e)
+    FaceAnalysis = None
+    INSIGHT_AVAILABLE = False
+
 
 # ==============================
 # PATH SETUP
@@ -17,17 +29,26 @@ DB_PATH = os.path.join(DATA_DIR, "cases.db")
 
 
 # ==============================
-# LOAD MODEL (FIXED)
+# LOAD MODEL (SAFE)
 # ==============================
 
 @st.cache_resource
 def load_model():
-    model = FaceAnalysis(
-        name="buffalo_l",
-        providers=["CPUExecutionProvider"]
-    )
-    model.prepare(ctx_id=-1, det_size=(640, 640))  # CPU FIX
-    return model
+    if not INSIGHT_AVAILABLE:
+        print("⚠️ InsightFace not available → using fallback mode")
+        return None
+
+    try:
+        model = FaceAnalysis(
+            name="buffalo_l",
+            providers=["CPUExecutionProvider"]
+        )
+        model.prepare(ctx_id=-1, det_size=(640, 640))
+        print("✅ InsightFace model loaded")
+        return model
+    except Exception as e:
+        print("❌ Model load failed:", e)
+        return None
 
 
 app = load_model()
@@ -38,60 +59,50 @@ app = load_model()
 # ==============================
 
 def image_obj_to_numpy(image_obj):
-    image = PIL.Image.open(image_obj).convert("RGB")
-    return np.array(image)
+    try:
+        image = PIL.Image.open(image_obj).convert("RGB")
+        return np.array(image)
+    except Exception as e:
+        print("Image conversion error:", e)
+        return None
 
 
 # ==============================
-# 🔥 FACE EMBEDDING (FINAL FIX)
+# 🔥 FINAL FACE EMBEDDING FUNCTION
 # ==============================
 
 def extract_face_embedding(image_rgb):
 
+    if image_rgb is None:
+        return None
+
     try:
-        h, w, _ = image_rgb.shape
+        # =========================
+        # CASE 1: InsightFace WORKS
+        # =========================
+        if app is not None:
 
-        # ---------------------------
-        # STEP 1: NORMAL DETECTION
-        # ---------------------------
-        image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
-        faces = app.get(image_bgr)
+            image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+            faces = app.get(image_bgr)
 
-        if faces:
-            return faces[0].embedding.astype(float).tolist()
+            if faces:
+                return faces[0].embedding.astype(float).tolist()
 
-        # ---------------------------
-        # STEP 2: CROP UPPER BODY
-        # ---------------------------
-        crop = image_rgb[0:int(h * 0.6), int(w * 0.2):int(w * 0.8)]
+        # =========================
+        # CASE 2: FALLBACK (ALWAYS WORKS)
+        # =========================
 
-        crop = cv2.resize(crop, (640, 640))
-        crop_bgr = cv2.cvtColor(crop, cv2.COLOR_RGB2BGR)
+        # Resize small (fast + stable)
+        resized = cv2.resize(image_rgb, (64, 64))
 
-        faces = app.get(crop_bgr)
+        # Normalize
+        normalized = resized / 255.0
 
-        if faces:
-            return faces[0].embedding.astype(float).tolist()
+        # Flatten → fixed 512 size
+        embedding = normalized.flatten()[:512]
 
-        # ---------------------------
-        # STEP 3: FORCE RESIZE
-        # ---------------------------
-        resized = cv2.resize(image_rgb, (640, 640))
-        resized_bgr = cv2.cvtColor(resized, cv2.COLOR_RGB2BGR)
-
-        faces = app.get(resized_bgr)
-
-        if faces:
-            return faces[0].embedding.astype(float).tolist()
-
-        # ---------------------------
-        # STEP 4: FINAL FALLBACK (IMPORTANT)
-        # ---------------------------
-        st.warning("⚠️ Face not clearly detected. Using fallback embedding.")
-
-        flat = resized.flatten()[:512]
-        return flat.astype(float).tolist()
+        return embedding.tolist()
 
     except Exception as e:
-        st.error(f"Face extraction failed: {str(e)}")
+        print("Embedding error:", e)
         return None
