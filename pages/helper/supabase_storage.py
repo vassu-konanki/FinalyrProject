@@ -1,35 +1,55 @@
+import os
 import uuid
-import streamlit as st
+from dotenv import load_dotenv
 from supabase import create_client
 
-SUPABASE_URL = st.secrets.get("SUPABASE_URL")
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY")
+load_dotenv()
 
-if not SUPABASE_URL or not SUPABASE_KEY:
-    st.error("Supabase credentials missing in Streamlit secrets")
-    st.stop()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 BUCKET_NAME = "missing-person-images"
 
 
-def upload_image(file):
+def upload_image(file_or_bytes, original_filename=None):
+    """
+    Flexible upload function.
+    Works with:
+    1) upload_image(file_object)
+    2) upload_image(file_bytes, filename)
+    """
     try:
-        file_ext = file.name.split(".")[-1]
-        filename = f"{uuid.uuid4()}.{file_ext}"
+        # Case 1: file object from Streamlit uploader
+        if original_filename is None:
+            file_obj = file_or_bytes
+            file_bytes = file_obj.getvalue()
+            original_filename = file_obj.name
+            content_type = file_obj.type
+        else:
+            # Case 2: bytes + filename
+            file_bytes = file_or_bytes
+            content_type = "image/jpeg"
 
-        file_bytes = file.read()
+        # Extract extension
+        file_ext = original_filename.split(".")[-1]
 
+        # Unique filename
+        unique_filename = f"{uuid.uuid4()}.{file_ext}"
+
+        # Upload to Supabase
         supabase.storage.from_(BUCKET_NAME).upload(
-            filename,
+            unique_filename,
             file_bytes,
-            {"content-type": file.type},
+            {"content-type": content_type}
         )
 
-        url = supabase.storage.from_(BUCKET_NAME).get_public_url(filename)
-        return url
+        # Get public URL
+        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(unique_filename)
+
+        return public_url
 
     except Exception as e:
-        st.error(f"Upload failed: {e}")
+        print("Upload error:", e)
         return None
