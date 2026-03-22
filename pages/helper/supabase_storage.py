@@ -11,29 +11,34 @@ SUPABASE_URL = None
 SUPABASE_KEY = None
 
 # ✅ 1. Try Streamlit secrets (CLOUD)
-if "SUPABASE_URL" in st.secrets:
-    SUPABASE_URL = st.secrets["SUPABASE_URL"]
-    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+try:
+    if "SUPABASE_URL" in st.secrets:
+        SUPABASE_URL = st.secrets["SUPABASE_URL"]
+        SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
+except Exception:
+    pass
 
 # ✅ 2. Fallback to .env (LOCAL)
+if not SUPABASE_URL:
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+
+        SUPABASE_URL = os.getenv("SUPABASE_URL")
+        SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    except Exception:
+        pass
+
+
+# ==============================
+# INIT CLIENT (SAFE)
+# ==============================
+
+if SUPABASE_URL and SUPABASE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 else:
-    from dotenv import load_dotenv
-    load_dotenv()
+    supabase = None
 
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-
-# ✅ FINAL VALIDATION (IMPORTANT)
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("❌ Supabase credentials missing. Set in secrets or .env")
-
-
-# ==============================
-# INIT CLIENT
-# ==============================
-
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 BUCKET_NAME = "missing-person-images"
 
@@ -49,12 +54,17 @@ def upload_image(file_or_bytes, original_filename=None):
     2) upload_image(file_bytes, filename)
     """
 
+    # ❌ Prevent crash if credentials missing
+    if supabase is None:
+        st.error("❌ Supabase is not configured. Add credentials in Streamlit secrets.")
+        return None
+
     try:
         # ✅ CASE 1: Streamlit file object
         if original_filename is None:
             file_obj = file_or_bytes
 
-            # IMPORTANT: reset pointer
+            # Reset pointer (VERY IMPORTANT)
             file_obj.seek(0)
 
             file_bytes = file_obj.read()
@@ -86,4 +96,5 @@ def upload_image(file_or_bytes, original_filename=None):
 
     except Exception as e:
         print("Upload error:", e)
+        st.error("❌ Image upload failed.")
         return None
