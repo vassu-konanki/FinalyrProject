@@ -45,6 +45,9 @@ with image_col:
     if image_obj:
         with st.spinner("🔍 Processing image..."):
 
+            # ✅ ALWAYS RESET POINTER (CRITICAL FIX)
+            image_obj.seek(0)
+
             st.image(image_obj, width=250)
 
             # Convert image
@@ -55,14 +58,15 @@ with image_col:
 
             if face_mesh:
                 try:
-                    # ✅ FIXED PART (IMPORTANT)
-                    file_bytes = image_obj.read()   # ✔ correct way
-                    filename = image_obj.name       # ✔ pass name separately
+                    # ✅ RESET POINTER AGAIN BEFORE READ
+                    image_obj.seek(0)
+
+                    file_bytes = image_obj.read()
+                    filename = image_obj.name
 
                     image_path = upload_image(file_bytes, filename)
 
                     if image_path:
-                        # Save in session
                         st.session_state.face_mesh = face_mesh
                         st.session_state.image_path = image_path
                         st.session_state.image_uploaded = True
