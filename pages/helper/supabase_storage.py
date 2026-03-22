@@ -10,12 +10,9 @@ from supabase import create_client
 SUPABASE_URL = None
 SUPABASE_KEY = None
 
-# ✅ 1. Streamlit Cloud
 if "SUPABASE_URL" in st.secrets:
     SUPABASE_URL = st.secrets["SUPABASE_URL"]
     SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-
-# ✅ 2. Local (.env)
 else:
     from dotenv import load_dotenv
     load_dotenv()
@@ -43,7 +40,7 @@ BUCKET_NAME = "missing-person-images"
 
 
 # ==============================
-# UPLOAD FUNCTION (FINAL FIX)
+# ✅ FINAL FIXED UPLOAD FUNCTION
 # ==============================
 
 def upload_image(file_or_bytes, original_filename=None):
@@ -54,12 +51,13 @@ def upload_image(file_or_bytes, original_filename=None):
 
     try:
         # =========================
-        # CASE 1: Streamlit file
+        # CASE 1: file object (Streamlit)
         # =========================
-        if original_filename is None:
+        if hasattr(file_or_bytes, "read"):
+
             file_obj = file_or_bytes
 
-            file_obj.seek(0)  # 🔥 critical
+            file_obj.seek(0)  # ✅ safe now
 
             file_bytes = file_obj.read()
             original_filename = file_obj.name
@@ -70,6 +68,9 @@ def upload_image(file_or_bytes, original_filename=None):
         else:
             file_bytes = file_or_bytes
 
+            if original_filename is None:
+                original_filename = "image.jpg"
+
         # =========================
         # FILE NAME
         # =========================
@@ -77,16 +78,12 @@ def upload_image(file_or_bytes, original_filename=None):
         unique_filename = f"{uuid.uuid4()}.{file_ext}"
 
         # =========================
-        # 🔥 UPLOAD (COMPATIBLE VERSION)
+        # UPLOAD
         # =========================
-        try:
-            supabase.storage.from_(BUCKET_NAME).upload(
-                unique_filename,
-                file_bytes
-            )
-        except Exception as upload_error:
-            st.error(f"❌ Upload failed: {upload_error}")
-            return None
+        supabase.storage.from_(BUCKET_NAME).upload(
+            unique_filename,
+            file_bytes
+        )
 
         # =========================
         # GET PUBLIC URL
