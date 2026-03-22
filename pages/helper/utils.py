@@ -22,7 +22,10 @@ def load_face_model():
     if FaceAnalysis is None or cv2 is None:
         return None
 
-    model = FaceAnalysis(name="buffalo_sc", providers=["CPUExecutionProvider"])
+    model = FaceAnalysis(
+        name="buffalo_sc",
+        providers=["CPUExecutionProvider"]
+    )
     model.prepare(ctx_id=-1, det_size=(640, 640))
     return model
 
@@ -40,22 +43,7 @@ def image_obj_to_numpy(image_obj):
 
 
 # ==============================
-# 🔥 AGGRESSIVE CROPPING
-# ==============================
-
-def aggressive_crops(image):
-    h, w, _ = image.shape
-
-    return [
-        image[0:int(h*0.5), int(w*0.2):int(w*0.8)],   # top-center
-        image[0:int(h*0.6), :],                       # full top
-        image[int(h*0.1):int(h*0.7), int(w*0.2):int(w*0.8)],
-        image[int(h*0.2):int(h*0.8), int(w*0.3):int(w*0.7)],
-    ]
-
-
-# ==============================
-# FINAL EMBEDDING FUNCTION
+# 🔥 FINAL EMBEDDING FUNCTION
 # ==============================
 
 def extract_face_embedding(image_rgb):
@@ -64,22 +52,9 @@ def extract_face_embedding(image_rgb):
         return None
 
     try:
-        # 🔥 STEP 1: FORCE CROPS FIRST (KEY FIX)
-        crops = aggressive_crops(image_rgb)
+        h, w, _ = image_rgb.shape
 
-        for crop in crops:
-            if crop is None or crop.size == 0:
-                continue
-
-            crop = cv2.resize(crop, (640, 640))
-            crop_bgr = cv2.cvtColor(crop, cv2.COLOR_RGB2BGR)
-
-            faces = app.get(crop_bgr)
-
-            if faces:
-                return faces[0].embedding.astype(float).tolist()
-
-        # 🔥 STEP 2: FULL IMAGE RESIZE
+        # 🔥 STEP 1: FORCE RESIZE (MOST IMPORTANT)
         resized = cv2.resize(image_rgb, (640, 640))
         resized_bgr = cv2.cvtColor(resized, cv2.COLOR_RGB2BGR)
 
@@ -88,9 +63,27 @@ def extract_face_embedding(image_rgb):
         if faces:
             return faces[0].embedding.astype(float).tolist()
 
-        # 🔥 STEP 3: FINAL FAIL
+        # 🔥 STEP 2: TRY MULTIPLE ZOOMS (NO DETECTOR)
+        zooms = [
+            image_rgb[0:int(h*0.6), :],
+            image_rgb[int(h*0.1):int(h*0.7), :],
+            image_rgb[int(h*0.2):int(h*0.8), int(w*0.2):int(w*0.8)],
+        ]
+
+        for z in zooms:
+            if z is None or z.size == 0:
+                continue
+
+            z = cv2.resize(z, (640, 640))
+            z_bgr = cv2.cvtColor(z, cv2.COLOR_RGB2BGR)
+
+            faces = app.get(z_bgr)
+
+            if faces:
+                return faces[0].embedding.astype(float).tolist()
+
         return None
 
     except Exception as e:
-        print("Face detection error:", e)
+        print("Face embedding error:", e)
         return None
