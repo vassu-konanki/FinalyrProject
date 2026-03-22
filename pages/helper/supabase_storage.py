@@ -3,98 +3,75 @@ import uuid
 import streamlit as st
 from supabase import create_client
 
+
 # ==============================
-# LOAD ENV (LOCAL + CLOUD SAFE)
+# LOAD SECRETS (CLOUD SAFE)
 # ==============================
 
 SUPABASE_URL = None
 SUPABASE_KEY = None
 
-# ✅ 1. Try Streamlit secrets (CLOUD)
-try:
-    if "SUPABASE_URL" in st.secrets:
-        SUPABASE_URL = st.secrets["SUPABASE_URL"]
-        SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
-except Exception:
-    pass
-
-# ✅ 2. Fallback to .env (LOCAL)
-if not SUPABASE_URL:
-    try:
-        from dotenv import load_dotenv
-        load_dotenv()
-
-        SUPABASE_URL = os.getenv("SUPABASE_URL")
-        SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-    except Exception:
-        pass
-
-
-# ==============================
-# INIT CLIENT (SAFE)
-# ==============================
-
-if SUPABASE_URL and SUPABASE_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+if "SUPABASE_URL" in st.secrets:
+    SUPABASE_URL = st.secrets["SUPABASE_URL"]
+    SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 else:
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+
+# ==============================
+# VALIDATION
+# ==============================
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    print("⚠️ Supabase not configured")
     supabase = None
+else:
+    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
 BUCKET_NAME = "missing-person-images"
 
 
 # ==============================
-# UPLOAD FUNCTION
+# UPLOAD FUNCTION (FIXED)
 # ==============================
 
-def upload_image(file_or_bytes, original_filename=None):
+def upload_image(file_obj):
     """
-    Supports:
-    1) upload_image(file_object)
-    2) upload_image(file_bytes, filename)
+    Upload image to Supabase storage
     """
 
-    # ❌ Prevent crash if credentials missing
     if supabase is None:
-        st.error("❌ Supabase is not configured. Add credentials in Streamlit secrets.")
         return None
 
     try:
-        # ✅ CASE 1: Streamlit file object
-        if original_filename is None:
-            file_obj = file_or_bytes
+        # 🔥 Reset pointer
+        file_obj.seek(0)
 
-            # Reset pointer (VERY IMPORTANT)
-            file_obj.seek(0)
+        file_bytes = file_obj.read()
+        file_name = file_obj.name
+        file_ext = file_name.split(".")[-1]
 
-            file_bytes = file_obj.read()
-            original_filename = file_obj.name
-            content_type = file_obj.type
+        unique_name = f"{uuid.uuid4()}.{file_ext}"
 
-        # ✅ CASE 2: bytes + filename
-        else:
-            file_bytes = file_or_bytes
-            content_type = "image/jpeg"
-
-        # Extract extension safely
-        file_ext = original_filename.split(".")[-1].lower()
-
-        # Unique filename
-        unique_filename = f"{uuid.uuid4()}.{file_ext}"
-
-        # Upload to Supabase
-        supabase.storage.from_(BUCKET_NAME).upload(
-            unique_filename,
-            file_bytes,
-            {"content-type": content_type}
+        # Upload
+        res = supabase.storage.from_(BUCKET_NAME).upload(
+            path=unique_name,
+            file=file_bytes,
+            file_options={"content-type": file_obj.type}
         )
 
+        # 🔥 Check error
+        if hasattr(res, "error") and res.error:
+            print("Upload error:", res.error)
+            return None
+
         # Get public URL
-        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(unique_filename)
+        public_url = supabase.storage.from_(BUCKET_NAME).get_public_url(unique_name)
 
         return public_url
 
     except Exception as e:
-        print("Upload error:", e)
-        st.error("❌ Image upload failed.")
+        print("Upload exception:", e)
         return None
